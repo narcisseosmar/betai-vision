@@ -45,33 +45,76 @@ type AnalyzedMatch = RawMatch & {
   createdAt: number;
   minOdd: number;
   predictedGoals: 1 | 3 | 5 | "X";
-  confidence: number; // 0-100
+  predictedOutcome: "1" | "X" | "2";
+  confidence: number;
   confidenceLabel: "Low" | "Medium" | "High";
   recommendation: "green" | "orange" | "red";
   prob1: number;
   probX: number;
   prob2: number;
+  margin: number;
+  expectedGoals: number;
+  bttsProb: number;
+  over25Prob: number;
+  under25Prob: number;
 };
 
-const STORAGE_KEY = "betanalyzer.history.v1";
+const STORAGE_KEY = "betanalyzer.history.v2";
+
+function poisson(k: number, lambda: number) {
+  let f = 1;
+  for (let i = 2; i <= k; i++) f *= i;
+  return (Math.pow(lambda, k) * Math.exp(-lambda)) / f;
+}
 
 function classifyMatch(m: RawMatch): AnalyzedMatch {
   const minOdd = Math.min(m.odd1, m.odd2);
-  const prob1 = (1 / m.odd1) * 100;
-  const probX = (1 / m.oddX) * 100;
-  const prob2 = (1 / m.odd2) * 100;
 
-  let predicted: AnalyzedMatch["predictedGoals"];
-  // Rule 4 — balanced both 2.40-2.70
+  const raw1 = 1 / m.odd1;
+  const rawX = 1 / m.oddX;
+  const raw2 = 1 / m.odd2;
+  const overround = raw1 + rawX + raw2;
+  const margin = (overround - 1) * 100;
+
+  // Normalize implied probabilities by removing bookmaker margin
+  const prob1 = (raw1 / overround) * 100;
+  const probX = (rawX / overround) * 100;
+  const prob2 = (raw2 / overround) * 100;
+
+  let predictedGoals: AnalyzedMatch["predictedGoals"];
   if (m.odd1 >= 2.4 && m.odd1 <= 2.7 && m.odd2 >= 2.4 && m.odd2 <= 2.7) {
-    predicted = "X";
-  } else if (minOdd < 1.5) predicted = 3;
-  else if (minOdd <= 2.3) predicted = 1;
-  else predicted = 5;
+    predictedGoals = "X";
+  } else if (minOdd < 1.5) predictedGoals = 3;
+  else if (minOdd <= 2.3) predictedGoals = 1;
+  else predictedGoals = 5;
 
-  // Confidence: stronger favorite or clearer draw = higher confidence
-  const topProb = Math.max(prob1, probX, prob2);
-  const confidence = Math.round(Math.min(95, Math.max(20, topProb)));
+  const predictedOutcome: AnalyzedMatch["predictedOutcome"] =
+    prob1 >= probX && prob1 >= prob2 ? "1" : prob2 >= probX ? "2" : "X";
+
+  // Expected total goals from draw odd (calibrated empirical mapping)
+  const expectedGoals = Math.max(1.5, Math.min(3.8, 0.7 * m.oddX + 0.4));
+
+  // Split goals between teams using normalized win probabilities
+  const strength1 = prob1 / Math.max(0.001, prob1 + prob2);
+  const lambdaH = expectedGoals * strength1;
+  const lambdaA = expectedGoals * (1 - strength1);
+
+  const bttsProb = (1 - Math.exp(-lambdaH)) * (1 - Math.exp(-lambdaA)) * 100;
+
+  let under = 0;
+  for (let a = 0; a <= 2; a++) {
+    for (let b = 0; b <= 2 - a; b++) {
+      under += poisson(a, lambdaH) * poisson(b, lambdaA);
+    }
+  }
+  const under25Prob = under * 100;
+  const over25Prob = 100 - under25Prob;
+
+  // Confidence combines top probability, gap to runner-up, and margin penalty
+  const sorted = [prob1, probX, prob2].sort((a, b) => b - a);
+  const gap = sorted[0] - sorted[1];
+  const rawConf = sorted[0] + gap * 0.4 - margin * 0.5;
+  const confidence = Math.round(Math.min(95, Math.max(15, rawConf)));
   const confidenceLabel: AnalyzedMatch["confidenceLabel"] =
     confidence >= 70 ? "High" : confidence >= 50 ? "Medium" : "Low";
   const recommendation: AnalyzedMatch["recommendation"] =
@@ -82,13 +125,19 @@ function classifyMatch(m: RawMatch): AnalyzedMatch {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: Date.now(),
     minOdd,
-    predictedGoals: predicted,
+    predictedGoals,
+    predictedOutcome,
     confidence,
     confidenceLabel,
     recommendation,
     prob1,
     probX,
     prob2,
+    margin,
+    expectedGoals,
+    bttsProb,
+    over25Prob,
+    under25Prob,
   };
 }
 
