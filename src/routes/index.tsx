@@ -246,7 +246,7 @@ function Index() {
       y += 6;
       doc.setFontSize(10);
       doc.text(
-        `1: ${m.odd1.toFixed(2)}   X: ${m.oddX.toFixed(2)}   2: ${m.odd2.toFixed(2)}   |  Goals: ${m.predictedGoals}  |  Confidence: ${m.confidence}% (${m.confidenceLabel})`,
+        `1:${m.odd1.toFixed(2)} X:${m.oddX.toFixed(2)} 2:${m.odd2.toFixed(2)} | Pick:${m.predictedOutcome} Goals:${m.predictedGoals} | xG:${m.expectedGoals.toFixed(2)} BTTS:${m.bttsProb.toFixed(0)}% O2.5:${m.over25Prob.toFixed(0)}% | Conf:${m.confidence}%`,
         14,
         y,
       );
