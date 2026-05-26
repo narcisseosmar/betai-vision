@@ -430,6 +430,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 function MatchCard({ match: m }: { match: AnalyzedMatch }) {
+  const outcomeLabel = m.predictedOutcome === "1" ? m.homeTeam : m.predictedOutcome === "2" ? m.awayTeam : "Draw";
   return (
     <Card className="overflow-hidden">
       <div className={`h-1 ${m.recommendation === "green" ? "bg-success" : m.recommendation === "orange" ? "bg-warning" : "bg-destructive"}`} />
@@ -446,9 +447,20 @@ function MatchCard({ match: m }: { match: AnalyzedMatch }) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
-          <OddBox label="1" odd={m.odd1} prob={m.prob1} />
-          <OddBox label="X" odd={m.oddX} prob={m.probX} />
-          <OddBox label="2" odd={m.odd2} prob={m.prob2} />
+          <OddBox label="1" odd={m.odd1} prob={m.prob1} highlight={m.predictedOutcome === "1"} />
+          <OddBox label="X" odd={m.oddX} prob={m.probX} highlight={m.predictedOutcome === "X"} />
+          <OddBox label="2" odd={m.odd2} prob={m.prob2} highlight={m.predictedOutcome === "2"} />
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+          <MetricBox label="xGoals" value={m.expectedGoals.toFixed(2)} />
+          <MetricBox label="BTTS" value={`${m.bttsProb.toFixed(0)}%`} />
+          <MetricBox label="Over 2.5" value={`${m.over25Prob.toFixed(0)}%`} />
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Pick: <span className="text-foreground font-semibold">{outcomeLabel}</span></span>
+          <span>Margin {m.margin.toFixed(1)}%</span>
         </div>
 
         <div>
@@ -465,12 +477,21 @@ function MatchCard({ match: m }: { match: AnalyzedMatch }) {
   );
 }
 
-function OddBox({ label, odd, prob }: { label: string; odd: number; prob: number }) {
+function OddBox({ label, odd, prob, highlight }: { label: string; odd: number; prob: number; highlight?: boolean }) {
   return (
-    <div className="rounded-lg bg-secondary/60 border border-border p-2">
+    <div className={`rounded-lg border p-2 ${highlight ? "bg-primary/15 border-primary/50" : "bg-secondary/60 border-border"}`}>
       <div className="text-[10px] text-muted-foreground font-semibold">{label}</div>
       <div className="font-bold">{odd.toFixed(2)}</div>
       <div className="text-[10px] text-muted-foreground">{prob.toFixed(0)}%</div>
+    </div>
+  );
+}
+
+function MetricBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-muted/40 border border-border/60 p-1.5">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="font-semibold text-foreground">{value}</div>
     </div>
   );
 }
